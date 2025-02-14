@@ -49,40 +49,7 @@ DevSync is a **full-stack DevOps monitoring and automation platform** that lever
 
 Below is an **architecture diagram** showcasing how DevSync’s components interact:
 
-```
-             +---------------------------+
-             |        User Request       |
-             +------------+--------------+
-                          |
-                          v
-             +---------------------------+
-             |       Frontend (React)    |
-             |  (Next.js + TypeScript)   |
-             +------------+--------------+
-                          |
-                          v
-             +---------------------------+
-             |        Express API         |
-             |  (Node.js + TypeScript)    |
-             +------------+--------------+
-                          |
-       ---------------------------------
-      |                                 |
-      v                                 v
-+------------+                   +------------+
-|  PostgreSQL |                   |  MongoDB   |
-| (Relational) |                   |  (NoSQL)  |
-+------------+                   +------------+
-      |                                 |
-      |         +-------------------+  |
-      |-------->| HashiCorp Vault   |  |
-      |         +-------------------+  |
-      |                                 |
-      v                                 v
-+-------------------+       +-------------------+
-|  HashiCorp Nomad |       | HashiCorp Terraform|
-+-------------------+       +-------------------+
-```
+![System Architecture](docs/system-architecture.png)
 
 ---
 
@@ -110,26 +77,30 @@ PG_DATABASE=devsync
 MONGO_URI=mongodb://localhost:27017/devsync
 ```
 
-### **4️⃣ Start HashiCorp Vault**
+### **4️⃣ Start Everything Using Docker**
+To start all services together:
 ```sh
-vault server -dev
+docker-compose up --build
 ```
 
-### **5️⃣ Start PostgreSQL & MongoDB** (if not already running)
-```sh
-brew services start postgresql@14
-brew services start mongodb-community
-```
+### **5️⃣ Access Services**
+| Service   | URL / Command |
+|-----------|--------------|
+| **Backend API** | http://localhost:5001 |
+| **PostgreSQL** | `psql -h localhost -U PG_USER -d devsync` |
+| **MongoDB** | `mongosh mongodb://localhost:27017/devsync` |
+| **Vault** | http://localhost:8200 |
+| **Consul** | http://localhost:8500 |
+| **Nomad** | http://localhost:4646 |
 
-### **6️⃣ Run the backend**
+### **6️⃣ Stopping Everything**
+To stop all containers:
 ```sh
-npm run dev
+docker-compose down
 ```
-
-### **7️⃣ Run the frontend**
+To stop and **delete all containers, networks, and volumes**:
 ```sh
-cd frontend
-npm run dev
+docker-compose down -v
 ```
 
 ---
@@ -138,7 +109,7 @@ npm run dev
 To deploy infrastructure:
 ```sh
 terraform init
-tarraform apply
+terraform apply
 nomad run devsync.nomad
 ```
 
@@ -153,17 +124,61 @@ nomad run devsync.nomad
 
 ---
 
-## 🐳 **Docker Support**
-To build and run with Docker:
-```sh
-docker-compose up --build
+## 📂 **Project Structure**
 ```
+DevSync/
+│── backend/
+│   ├── src/
+│   │   ├── controllers/
+│   │   ├── models/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   ├── config/
+│   ├── server.ts
+│   ├── database.ts
+│   ├── package.json
+│
+│── frontend/
+│   ├── components/
+│   ├── pages/
+│   ├── redux/
+│   ├── styles/
+│   ├── package.json
+│   ├── next.config.js
+│
+│── infrastructure/
+│   ├── terraform/
+│   ├── nomad/
+│
+│── docs/
+│   ├── system-architecture.png
+│
+│── .gitignore
+│── README.md
+```
+
+---
+
+## 🐳 **Docker Support**
+
+### **Dockerfile Explanation**
+- **Defines how to build the backend container**.
+- Uses **Node.js 18**.
+- **Copies package.json first** for caching dependencies.
+- **Installs dependencies inside the container**.
+- **Copies source files** into the container.
+- **Runs `npm run dev` to start the backend**.
+
+### **Docker Compose Explanation**
+- **Manages multiple services together**.
+- **Starts PostgreSQL, MongoDB, Vault, Consul, and Nomad**.
+- **Automatically runs `npm run dev` inside the backend container**.
+- **Maps environment variables from the `.env` file**.
 
 ---
 
 ## 🚀 **Deployment**
 This project supports **GitHub Actions CI/CD** and **Nomad Job Scheduling**. To deploy:
-
 ```sh
 nomad run devsync.nomad
 ```
@@ -183,4 +198,3 @@ We welcome **issues, pull requests, and discussions**! Feel free to contribute, 
 ---
 
 🚀 **DevSync** - The future of **automated DevOps monitoring and management!** 🎯
-

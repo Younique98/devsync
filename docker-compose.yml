@@ -1,0 +1,97 @@
+services:
+    postgres:
+        image: postgres:14
+        container_name: devsync-postgres
+        restart: unless-stopped
+        ports:
+            - '5432:5432'
+        environment:
+            POSTGRES_USER: ${PG_USER}
+            POSTGRES_PASSWORD: ${PG_PASSWORD}
+            POSTGRES_DB: ${PG_DATABASE}
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+
+    mongodb:
+        image: mongo:6.0
+        container_name: devsync-mongodb
+        restart: unless-stopped
+        ports:
+            - '27017:27017'
+        environment:
+            MONGO_INITDB_DATABASE: ${MONGO_DATABASE}
+            MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+        volumes:
+            - mongo_data:/data/db
+
+    vault:
+        image: hashicorp/vault:latest
+        container_name: devsync-vault
+        restart: unless-stopped
+        ports:
+            - '8210:8210'
+        environment:
+            VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
+            VAULT_ADDR: ${VAULT_ADDR}
+            VAULT_API_ADDR: ${VAULT_API_ADDR}
+            NOMAD_VAR_VAULT_TOKEN: ${NOMAD_VAR_VAULT_TOKEN}
+            VAULT_LOCAL_CONFIG: '{"backend": {"file": {"path": "/vault/file"}}, "listener": [{"tcp": {"address": "0.0.0.0:8210", "tls_disable": true}}], "ui": true}'
+        cap_add:
+            - IPC_LOCK
+        volumes:
+            - vault_data:/vault/file
+
+    nomad:
+        image: hashicorp/nomad:latest
+        container_name: devsync-nomad
+        restart: unless-stopped
+        ports:
+            - '4646:4646'
+        environment:
+            NOMAD_ENTERPRISE: '0'
+            NOMAD_SKIP_DOCKER_IMAGE_WARN: '1'
+        depends_on:
+            - consul
+        volumes:
+            - ./nomad.hcl:/etc/nomad/nomad.hcl
+            - nomad_data:/opt/nomad/data
+        command: ['agent', '-config', '/etc/nomad/nomad.hcl']
+
+    consul:
+        image: hashicorp/consul:latest
+        container_name: devsync-consul
+        restart: unless-stopped
+        ports:
+            - '8500:8500'
+        command: ['agent', '-dev']
+        volumes:
+            - consul_data:/consul/data
+
+    backend:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: devsync-backend
+        restart: unless-stopped
+        depends_on:
+            - postgres
+            - mongodb
+            - vault
+        environment:
+            PG_USER: ${PG_USER}
+            PG_PASSWORD: ${PG_PASSWORD}
+            PG_DATABASE: ${PG_DATABASE}
+            MONGO_URI: ${MONGO_URI}
+            VAULT_ADDR: ${VAULT_ADDR}
+            VAULT_TOKEN: ${VAULT_TOKEN}
+        ports:
+            - '5001:5001'
+        command: npm run dev
+
+volumes:
+    postgres_data:
+    mongo_data:
+    vault_data:
+    nomad_data:
+    consul_data:
