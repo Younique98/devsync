@@ -17,23 +17,23 @@ variable "mongo_uri" {
 }
 
 provider "vault" {
-   address = "http://127.0.0.1:8200"
+  address = "http://127.0.0.1:8200"
 }
 
 provider "nomad" {
-    address = "http://127.0.0.1:4646"
+  address = "http://127.0.0.1:4646"
 }
 
 provider "consul" {
-    address = "http://127.0.0.1:8500"
+  address = "http://127.0.0.1:8500"
 }
 
 resource "vault_generic_secret" "database_secrets" {
   path = "secret/database"
-  data_json = jsonencode({ 
-    PG_USER      = var.pg_user
-    PG_PASSWORD  = var.pg_password
-    MONGO_URI    = var.mongo_uri
+  data_json = jsonencode({
+    PG_USER     = var.pg_user
+    PG_PASSWORD = var.pg_password
+    MONGO_URI   = var.mongo_uri
   })
 }
 
