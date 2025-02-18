@@ -25,8 +25,8 @@ DevSync is a **full-stack DevOps monitoring and automation platform** that lever
 - React.js + Next.js (Server-Side Rendering)
 - TypeScript
 - TailwindCSS (for styling)
-- Redux Toolkit (State Management)
 - React Query (Data Fetching)
+- React Hooks and React Form (State Management and Form Handling)
 - Vercel (Deployment)
 
 ### **Backend:**
@@ -47,9 +47,9 @@ DevSync is a **full-stack DevOps monitoring and automation platform** that lever
 
 ## 📊 **System Architecture**
 
-Below is an **architecture diagram** showcasing how DevSync’s components interact:
+Here is the architecture of DevSync:
 
-![System Architecture](docs/system-architecture.png)
+![System Architecture](docs/devsync-architecture.svg)
 
 ---
 
@@ -57,7 +57,7 @@ Below is an **architecture diagram** showcasing how DevSync’s components inter
 
 ### **1️⃣ Clone the repository**
 ```sh
-git clone https://github.com/yourusername/devsync.git
+git clone git@github.com:Younique98/devsync.git
 cd devsync
 ```
 
@@ -69,7 +69,7 @@ npm install
 ### **3️⃣ Set up environment variables**
 Create a `.env` file:
 ```ini
-VAULT_ADDR=http://127.0.0.1:8200
+VAULT_ADDR=http://devsync-vault:8200
 VAULT_TOKEN=your-root-token
 PG_USER=your_postgres_user
 PG_PASSWORD=your_postgres_password
@@ -141,7 +141,6 @@ DevSync/
 │── frontend/
 │   ├── components/
 │   ├── pages/
-│   ├── redux/
 │   ├── styles/
 │   ├── package.json
 │   ├── next.config.js
