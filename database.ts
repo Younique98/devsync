@@ -1,68 +1,81 @@
 import { Pool } from 'pg'
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
-import axios from 'axios'
 
 dotenv.config()
 
-// Function to fetch database secrets from Vault
 async function getDatabaseSecrets() {
     try {
         const VAULT_ADDR = process.env.VAULT_ADDR
         const VAULT_TOKEN = process.env.VAULT_TOKEN
+        if (!VAULT_ADDR) {
+            throw new Error('❌ Vault address is incorrect')
+        }
+        if (!VAULT_TOKEN) {
+            throw new Error('❌ Vault environment variables/tokens are missing')
+        }
 
-        if (!VAULT_ADDR || !VAULT_TOKEN) {
+        console.log('🔍 Fetching secrets from Vault...', `${VAULT_ADDR}`)
+
+        const response = await fetch(`${VAULT_ADDR}/v1/secret/database`, {
+            method: 'GET',
+            headers: {
+                'X-Vault-Token': VAULT_TOKEN,
+                Accept: 'application/json',
+            },
+        })
+        if (!response.ok) {
+            const errorText = await response.text()
             throw new Error(
-                'Vault address or token is missing in environment variables.'
+                `❌ Vault API Error: ${response.status} ${response.statusText} - ${errorText}`
             )
         }
-        const response = await axios.get(VAULT_ADDR, {
-            headers: { 'X-Vault-Token': VAULT_TOKEN },
-        })
 
+        const data = await response.json()
         console.log(
-            '✅ Successfully retrieved secrets from Vault:',
-            response.data.data
+            '🔍 Secrets fetched successfully in getDatabaseSecrets:',
+            data.data
         )
-
-        return response.data.data
+        return data.data
     } catch (err) {
-        console.error(
-            '❌ Error fetching secrets from Vault:',
-            (err as Error).message
-        )
+        console.error('❌ Error fetching database secrets:', err)
         throw err
     }
 }
 
 const connectDatabases = async () => {
-    const PG_DATABASE = process.env.PG_DATABASE
-    const PG_USER = process.env.PG_USER
-    const PG_PASSWORD = process.env.PG_PASSWORD
-    const MONGO_URI = process.env.MONGO_URI
-
     try {
         const secrets = await getDatabaseSecrets()
-        console.log('All available secrets:', JSON.stringify(secrets, null, 2))
-        console.log('Attempting to connect to database:', secrets)
-        console.log('Attempting to connect to database:', PG_DATABASE)
+        console.log('🔍 Retrieved Secrets:', JSON.stringify(secrets, null, 2))
+
+        const {
+            PG_USER: pgUser,
+            PG_PASSWORD: pgPassword,
+            PG_DATABASE: pgDatabase,
+            MONGO_URI: mongoUri,
+            PG_HOST: pgHost,
+        } = secrets
+
+        if (!pgUser || !pgPassword || !pgDatabase || !pgHost) {
+            throw new Error('❌ Missing PostgreSQL credentials from Vault.')
+        }
+
+        if (!mongoUri) {
+            throw new Error('❌ Missing MongoDB URI from Vault.')
+        }
+
         const pgPool = new Pool({
-            user: PG_USER,
-            password: PG_PASSWORD,
-            host: 'localhost',
-            database: PG_DATABASE, // Ensure this matches your DB name
+            user: pgUser,
+            password: pgPassword,
+            host: pgHost,
+            database: pgDatabase,
             port: 5432,
         })
 
-        // Test PostgreSQL connection explicitly
         await pgPool.connect()
         console.log('✅ PostgreSQL Connected Successfully')
 
-        if (!MONGO_URI) {
-            throw new Error('MongoDB URI is missing in environment variables.')
-        }
-        // MongoDB connection
-        await mongoose.connect(MONGO_URI)
+        await mongoose.connect(mongoUri)
         console.log('✅ MongoDB Connected Successfully')
 
         return { pgPool, mongoose }
