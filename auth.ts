@@ -16,7 +16,13 @@ async function getSecretKey() {
             'X-Vault-Token': VAULT_TOKEN,
         },
     })
-    return response.data.data.data.SECRET_KEY
+    const secretKey = response.data?.data?.data?.SECRET_KEY
+    if (!secretKey) {
+        throw new Error(
+            '❌ No SECRET_KEY found at secret/data/auth - has it been seeded (see init-vault.sh)?'
+        )
+    }
+    return secretKey
 }
 
 export type Role = 'admin' | 'user'

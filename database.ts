@@ -17,7 +17,13 @@ async function getDatabaseSecrets() {
 
         console.log('🔍 Fetching secrets from Vault...', `${VAULT_ADDR}`)
 
-        const response = await fetch(`${VAULT_ADDR}/v1/secret/database`, {
+        // KV v2 read path (Vault's "secret/" mount defaults to KV v2, which
+        // is what `vault kv put secret/database ...` in init-vault.sh writes
+        // to) - the actual secret data is nested under data.data.data, same
+        // as auth.ts's getSecretKey(). Using the KV v1 path/shape here
+        // (secret/database + data.data) would 404/return no data against
+        // any standard Vault setup, including the docker-compose service.
+        const response = await fetch(`${VAULT_ADDR}/v1/secret/data/database`, {
             method: 'GET',
             headers: {
                 'X-Vault-Token': VAULT_TOKEN,
@@ -32,11 +38,17 @@ async function getDatabaseSecrets() {
         }
 
         const data = await response.json()
+        if (!data?.data?.data) {
+            throw new Error(
+                `❌ No secret found at secret/data/database - has it been seeded (see init-vault.sh)?`
+            )
+        }
+
         console.log(
             '🔍 Secrets fetched successfully in getDatabaseSecrets:',
-            data.data
+            data.data.data
         )
-        return data.data
+        return data.data.data
     } catch (err) {
         console.error('❌ Error fetching database secrets:', err)
         throw err

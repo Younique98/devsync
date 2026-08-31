@@ -44,6 +44,14 @@ describe('generateToken / verifyToken', () => {
 
         await expect(verifyToken(token)).rejects.toThrow()
     })
+
+    it('throws a clear error, not a raw TypeError, when the secret is missing/unseeded', async () => {
+        // What a real Vault KV v2 mount returns for a path with no secret
+        // written yet (e.g. init-vault.sh never ran).
+        mockedAxios.get.mockResolvedValue({ data: { data: null } })
+
+        await expect(generateToken('user-5')).rejects.toThrow(/No SECRET_KEY found/)
+    })
 })
 
 describe('requireRole', () => {
