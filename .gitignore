@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+build/
+
+# typescript
+*.tsbuildinfo
+
+# env files
+.env
+.env.*
+!.env.example
+
+# downloaded binaries / installers
+*.tgz
+*.zip
+*.dmg
+mongosh-*/
+mongodb-*/
+
+# macOS
+.DS_Store
+._*
+
+# logs
+*.log
+npm-debug.log*
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# kubernetes - real secrets, never the .example template
+k8s/secrets.yaml

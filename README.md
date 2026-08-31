@@ -1,53 +1,50 @@
 # DevSync - Full-Stack DevOps Platform
 
 ## 🚀 Overview
-DevSync is a **full-stack DevOps monitoring and automation platform** that leverages **HashiCorp tools** to manage infrastructure, secrets, deployments, and observability efficiently. It is designed for engineers who need a **scalable**, **secure**, and **automated** DevOps pipeline. This repository contains both the **frontend and backend** components, ensuring a seamless integration of the entire system.
+DevSync is a **full-stack DevOps monitoring and automation platform** that leverages **HashiCorp tools** to manage infrastructure, secrets, deployments, and observability. It is designed for engineers who need a **scalable**, **secure**, and **automated** DevOps pipeline. This repository contains both the **frontend and backend** components, integrated with real, working infrastructure config rather than just placeholder docs.
 
 ---
 
 ## ✨ Features
-- **Authentication & Authorization** (JWT-based, OAuth2)
-- **Secrets Management** (HashiCorp Vault for secure credential storage)
-- **Infrastructure as Code** (Terraform & Nomad for automated provisioning)
-- **Database Support** (PostgreSQL + MongoDB integration)
-- **Custom GitHub Actions** for **CI/CD automation**
-- **Containerized Deployment** (Docker + Kubernetes)
-- **Monitoring & Logging** (DataDog, Prometheus, Loki, Grafana)
-- **Role-based Access Control (RBAC)** for user permissions
-- **Health Checks & Service Discovery** (Consul + Nomad)
-- **Full-Stack Monitoring Dashboard**
+- **Authentication & Authorization** - JWT-based (`auth.ts`), plus GitHub OAuth2 (`oauth.ts`, `/auth/github`)
+- **Secrets Management** - HashiCorp Vault for secure credential storage (`auth.ts`, `database.ts`)
+- **Infrastructure as Code** - Terraform (`main.tf`) provisions Vault secrets and a Nomad job (`backend.nomad`)
+- **Database Support** - PostgreSQL + MongoDB, connected via credentials pulled from Vault
+- **CI/CD** - GitHub Actions workflow (`.github/workflows/ci.yml`): lint, typecheck, unit tests, a real migration run against a Postgres service container, and a production build, on every push/PR
+- **Containerized Deployment** - Docker Compose for local dev, plus Kubernetes manifests (`k8s/`) for cluster deployment
+- **Monitoring & Logging** - Prometheus scrapes a real `/metrics` endpoint (`server.ts`), Grafana is pre-provisioned with Prometheus + Loki datasources, Promtail ships container logs to Loki
+- **Role-based Access Control (RBAC)** - `requireRole()` in `auth.ts`, enforced on `/admin/status` and `/api/vault`
+- **Health Checks & Service Discovery** - the backend self-registers with Consul on startup with an HTTP health check, and deregisters on shutdown (`serviceDiscovery.ts`)
+- **Monitoring Dashboard** - `/dashboard` shows live backend health and links to Grafana/Prometheus/Consul/Nomad/Vault
+
+See [Areas for Improvement](#-areas-for-improvement) below for the couple of things that need real infrastructure credentials I don't have to fully wire up, or a larger fix than fits this pass.
 
 ---
 
 ## 🛠 Tech Stack
 
 ### **Frontend:**
-- React.js + Next.js (Server-Side Rendering)
+- React + Next.js (Pages Router)
 - TypeScript
-- TailwindCSS (for styling)
-- React Query (Data Fetching)
-- React Hooks and React Form (State Management and Form Handling)
-- Vercel (Deployment)
+- TailwindCSS
 
 ### **Backend:**
 - Node.js (Express + TypeScript)
-- PostgreSQL (Relational Database)
-- MongoDB (NoSQL Database)
-- Redis (Caching Layer)
+- PostgreSQL (`pg`) + MongoDB (`mongoose`)
+- JWT (`jsonwebtoken`) + `bcryptjs` for password hashing
+- `prom-client` for Prometheus metrics
 
 ### **Infrastructure & DevOps:**
 - HashiCorp Vault (Secrets Management)
 - HashiCorp Terraform (Infrastructure as Code)
-- HashiCorp Nomad (Container Orchestration)
+- HashiCorp Nomad + Consul (Container Orchestration, Service Discovery)
 - GitHub Actions (CI/CD)
-- Docker & Kubernetes (Containerization & Deployment)
-- DataDog (Monitoring & Observability)
+- Docker Compose (local dev) & Kubernetes manifests (`k8s/`)
+- Prometheus, Grafana, Loki + Promtail (Monitoring & Logging)
 
 ---
 
 ## 📊 **System Architecture**
-
-Here is the architecture of DevSync:
 
 ![System Architecture](docs/devsync-architecture.svg)
 
@@ -69,89 +66,130 @@ npm install
 ### **3️⃣ Set up environment variables**
 Create a `.env` file:
 ```ini
+# Vault
 VAULT_ADDR=http://devsync-vault:8200
 VAULT_TOKEN=your-root-token
+
+# Postgres / Mongo (seeded into Vault by init-vault.sh)
 PG_USER=your_postgres_user
 PG_PASSWORD=your_postgres_password
 PG_DATABASE=devsync
 MONGO_URI=mongodb://localhost:27017/devsync
+MONGO_DATABASE=devsync
+MONGO_USER=your_mongo_user
+MONGO_PASSWORD=your_mongo_password
+
+# Service discovery
+CONSUL_ADDR=http://devsync-consul:8500
+
+# GitHub OAuth2 (create an OAuth App at https://github.com/settings/developers)
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GITHUB_CALLBACK_URL=http://localhost:5001/auth/github/callback
+
+# Frontend -> backend
+NEXT_PUBLIC_BACKEND_URL=http://localhost:5001
+
+# Grafana (optional, defaults to admin/admin)
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=admin
 ```
 
 ### **4️⃣ Start Everything Using Docker**
-To start all services together:
 ```sh
 docker-compose up --build
 ```
 
 ### **5️⃣ Access Services**
-| Service   | URL / Command |
-|-----------|--------------|
+| Service         | URL / Command |
+|-----------------|----------------|
+| **Frontend**    | http://localhost:3000 |
+| **Dashboard**   | http://localhost:3000/dashboard |
 | **Backend API** | http://localhost:5001 |
-| **PostgreSQL** | `psql -h localhost -U PG_USER -d devsync` |
-| **MongoDB** | `mongosh mongodb://localhost:27017/devsync` |
-| **Vault** | http://localhost:8200 |
-| **Consul** | http://localhost:8500 |
-| **Nomad** | http://localhost:4646 |
+| **Metrics**     | http://localhost:5001/metrics |
+| **PostgreSQL**  | `psql -h localhost -U PG_USER -d devsync` |
+| **MongoDB**     | `mongosh mongodb://localhost:27017/devsync` |
+| **Vault**       | http://localhost:8200 |
+| **Consul**      | http://localhost:8500 |
+| **Nomad**       | http://localhost:4646 |
+| **Prometheus**  | http://localhost:9090 |
+| **Grafana**     | http://localhost:3001 |
+| **Loki**        | http://localhost:3100 |
 
-### **6️⃣ Stopping Everything**
-To stop all containers:
+### **6️⃣ Run database migrations**
 ```sh
-docker-compose down
+npm run migrate
 ```
-To stop and **delete all containers, networks, and volumes**:
+Applies each `.sql` file in `migrations/` exactly once, tracked in a `schema_migrations` table.
+
+### **7️⃣ Stopping Everything**
 ```sh
-docker-compose down -v
+docker-compose down       # stop
+docker-compose down -v    # stop + delete volumes
 ```
 
 ---
 
 ## 🏗️ **Infrastructure Setup (Terraform + Nomad)**
-To deploy infrastructure:
 ```sh
 terraform init
 terraform apply
-nomad run devsync.nomad
 ```
+`terraform apply` seeds Vault with DB credentials and deploys `backend.nomad` to Nomad via the `nomad_job` resource in `main.tf`.
 
 ---
 
 ## ✅ **API Endpoints**
-| Method | Endpoint            | Description            |
-|--------|---------------------|------------------------|
-| `POST` | `/api/auth/login`   | User login            |
-| `GET`  | `/api/users`        | Get user list         |
-| `POST` | `/api/deploy`       | Trigger deployment    |
+| Method | Endpoint                | Description                                              |
+|--------|--------------------------|-----------------------------------------------------------|
+| `GET`  | `/health`                | Health check (also the Consul + Kubernetes probe target) |
+| `GET`  | `/metrics`                | Prometheus-formatted metrics                              |
+| `POST` | `/login`                  | Username/password login against the demo user store, returns a JWT |
+| `GET`  | `/auth/github`             | Redirects to GitHub's OAuth2 authorize page                |
+| `GET`  | `/auth/github/callback`    | Exchanges the OAuth code, returns a JWT                    |
+| `GET`  | `/admin/status`            | RBAC-protected (`admin` role) - Postgres/Mongo connection status |
+| `GET`  | `/api/vault`               | Next.js API route proxying secrets from Vault, RBAC-protected (`admin` role) |
+
+**Demo login credentials** (see `users.ts`): `admin` / `admin123` (role: `admin`), `demo` / `demo123` (role: `user`).
 
 ---
 
 ## 📂 **Project Structure**
 ```
-DevSync/
-│── backend/
-│   ├── src/
-│   │   ├── controllers/
-│   │   ├── models/
-│   │   ├── routes/
-│   │   ├── services/
-│   │   ├── config/
-│   ├── server.ts
-│   ├── database.ts
-│   ├── package.json
-│
-│── frontend/
-│   ├── components/
-│   ├── pages/
-│   ├── styles/
-│   ├── package.json
-│   ├── next.config.js
-│
-│── infrastructure/
-│   ├── terraform/
-│   ├── nomad/
-│
+devsync/
+│── auth.ts                 # JWT generation/verification + requireRole() RBAC guard
+│── users.ts                 # In-memory demo user store (bcrypt-hashed)
+│── oauth.ts                  # GitHub OAuth2 authorize URL + code exchange
+│── serviceDiscovery.ts        # Consul service registration/deregistration
+│── database.ts                 # PostgreSQL + MongoDB connections via Vault secrets
+│── server.ts                    # Express backend: health, metrics, login, OAuth, RBAC routes
+│── migrations/
+│   ├── migrate.js                # Migration runner (tracks applied migrations)
+│   └── 001_create_users_table.sql
+│── pages/
+│   ├── _app.tsx
+│   ├── index.tsx
+│   ├── dashboard.tsx              # Live backend health + links to monitoring tools
+│   └── api/vault.ts                # RBAC-protected Vault secrets proxy
+│── __tests__/                       # Jest unit + supertest integration tests
+│── k8s/                               # Kubernetes manifests (namespace, Deployment, Service, Secret template)
+│── monitoring/
+│   ├── prometheus.yml
+│   ├── loki-config.yml
+│   ├── promtail-config.yml
+│   └── grafana-datasources.yml
 │── docs/
-│   ├── system-architecture.png
-│
+│   └── devsync-architecture.svg
+│── nomad-config/
+│   └── nomad.hcl                     # Nomad agent config
+│── main.tf                            # Terraform: Vault secrets + Nomad job deployment
+│── backend.nomad                       # Nomad job spec for the backend
+│── init-vault.sh                        # Seeds Vault with DB credentials on startup
+│── Dockerfile
+│── docker-compose.yml                    # Postgres, MongoDB, Vault, Consul, Nomad, Prometheus, Loki, Promtail, Grafana, backend
+│── tsconfig.json                          # Frontend + tests (noEmit - Next.js handles its own bundling)
+│── tsconfig.server.json                    # Backend build config (emits to build/, used by `npm start`)
+│── .github/workflows/ci.yml
 │── .gitignore
 │── README.md
 ```
@@ -160,27 +198,43 @@ DevSync/
 
 ## 🐳 **Docker Support**
 
-### **Dockerfile Explanation**
-- **Defines how to build the backend container**.
-- Uses **Node.js 18**.
-- **Copies package.json first** for caching dependencies.
-- **Installs dependencies inside the container**.
-- **Copies source files** into the container.
-- **Runs `npm run dev` to start the backend**.
+### **Dockerfile**
+Node.js 18 base image, installs dependencies, copies source, runs `npm run dev` on port 5001.
 
-### **Docker Compose Explanation**
-- **Manages multiple services together**.
-- **Starts PostgreSQL, MongoDB, Vault, Consul, and Nomad**.
-- **Automatically runs `npm run dev` inside the backend container**.
-- **Maps environment variables from the `.env` file**.
+### **Docker Compose**
+Brings up the full stack together: Postgres, MongoDB, Vault (+ setup job that seeds it), Consul, Nomad, the backend, and the monitoring stack (Prometheus, Loki, Promtail, Grafana).
+
+---
+
+## 🧪 **Testing**
+```sh
+npm run lint                                # eslint
+npx tsc --noEmit                            # typecheck: frontend + tests
+npx tsc -p tsconfig.server.json --noEmit    # typecheck: backend (server.ts et al.)
+npm test                                    # jest + supertest - RBAC, JWT, OAuth2 exchange, Consul registration, and live HTTP routes
+```
+All of the above run in CI on every push/PR, along with a real migration run against a Postgres service container and `npm run build` (which builds both the Next.js frontend and compiles the Express backend into `build/`, matching what `npm start` actually runs).
 
 ---
 
 ## 🚀 **Deployment**
-This project supports **GitHub Actions CI/CD** and **Nomad Job Scheduling**. To deploy:
+Deploy the Nomad job directly:
 ```sh
-nomad run devsync.nomad
+nomad run backend.nomad
 ```
+or via Terraform (`terraform apply`, see above). For Kubernetes, apply the manifests in `k8s/` after filling in `k8s/secrets.yaml` from the `k8s/secrets.example.yaml` template.
+
+---
+
+## 🔭 **Areas for Improvement**
+
+A few things that are genuinely out of reach without infrastructure I don't have access to in this environment, or that need a larger follow-up than fits here:
+
+- **DataDog** - needs a real DataDog account and API key I don't have. The Prometheus/Grafana/Loki stack covers the same "Monitoring & Logging" ground and is fully self-hosted; a DataDog agent could be added to `docker-compose.yml` the same way once there's a key to configure it with.
+- **GitHub OAuth2 end-to-end** - the authorize-URL and code-exchange logic (`oauth.ts`) is real and unit-tested against a mocked GitHub API, and the `/auth/github` + `/auth/github/callback` routes are integration-tested. What's *not* tested is a live round trip against the real GitHub OAuth service, since that needs a real registered OAuth App's client ID/secret.
+- **Demo user store -> real Postgres table** - `users.ts` is an in-memory demo store (clearly marked as such) so the login flow can be exercised end-to-end without a full user-management feature. `migrations/001_create_users_table.sql` already creates the real `users` table this should read from instead - swapping `users.ts` to query it is the next step.
+- **Full docker-compose stack, live** - I verified each service's config in isolation (schema-validated `docker-compose.yml`, tested the migration runner against a real local Postgres, tested RBAC/JWT/OAuth/Consul-registration logic against mocked dependencies, and Kubernetes manifests are YAML-validated) but couldn't spin up the entire 10-service stack together in this environment to watch it all boot in concert - do that once, locally, before relying on it for a demo.
+- **Kubernetes manifests** - written to standard patterns and YAML-validated, but not applied against a real cluster.
 
 ---
 
@@ -190,9 +244,6 @@ This project is licensed under the **MIT License**.
 ## ✨ **Contributors**
 - **Erica Thompson** - [LinkedIn](https://linkedin.com/in/ericathompsonsmiles)
 - Open to contributions! Feel free to fork and submit PRs.
-
-## 📢 **Feedback & Contributions**
-We welcome **issues, pull requests, and discussions**! Feel free to contribute, suggest features, or report bugs.
 
 ---
 

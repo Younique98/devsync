@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "build",
+    "module": "commonjs",
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "server.ts",
+    "auth.ts",
+    "database.ts",
+    "users.ts",
+    "oauth.ts",
+    "serviceDiscovery.ts"
+  ],
+  "exclude": ["node_modules", "__tests__", "pages"]
+}
