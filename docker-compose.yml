@@ -54,6 +54,11 @@ services:
         environment:
             VAULT_ADDR: ${VAULT_ADDR}
             VAULT_TOKEN: ${VAULT_TOKEN}
+            PG_USER: ${PG_USER}
+            PG_PASSWORD: ${PG_PASSWORD}
+            PG_DATABASE: ${PG_DATABASE}
+            MONGO_URI: mongodb://devsync-mongodb:27017/${MONGO_DATABASE}
+            JWT_SECRET_KEY: ${JWT_SECRET_KEY}
         volumes:
             - ./init-vault.sh:/init-vault.sh
         entrypoint: ['/bin/sh', '/init-vault.sh']
