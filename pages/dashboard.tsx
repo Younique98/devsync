@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import Head from 'next/head'
+import { Seo } from '../components/Seo'
 import { StatTile } from '../components/StatTile'
 import { StatusPill } from '../components/StatusPill'
 import { RequestVolumeChart } from '../components/RequestVolumeChart'
@@ -14,9 +14,11 @@ const ACTIVITY_DOT: Record<string, string> = {
 export default function Dashboard() {
     return (
         <>
-            <Head>
-                <title>Dashboard - DevSync</title>
-            </Head>
+            <Seo
+                title="Dashboard"
+                description="Live infrastructure overview for DevSync: request volume, service health across Postgres, MongoDB, Vault, Consul, and Nomad, and recent deployment activity."
+                path="/dashboard"
+            />
             <div className="min-h-screen bg-background text-ink">
                 <header className="border-b border-border">
                     <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">

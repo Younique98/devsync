@@ -1,19 +1,33 @@
 import Link from 'next/link'
-import Head from 'next/head'
+import { Seo } from '../components/Seo'
 
 const FEATURES = [
-    { title: 'Secrets management', description: 'Vault-backed credentials, never hardcoded.' },
-    { title: 'Service discovery', description: 'Consul health checks, self-registering services.' },
-    { title: 'Observability', description: 'Prometheus metrics, Grafana dashboards, Loki logs.' },
-    { title: 'Infrastructure as code', description: 'Terraform + Nomad job specs, version controlled.' },
+    {
+        title: 'Secrets management',
+        description: 'Centralized, Vault-backed credential storage - no secrets hardcoded in source or config.',
+    },
+    {
+        title: 'Service discovery',
+        description: 'Consul-registered services with automated health checks and live status reporting.',
+    },
+    {
+        title: 'Observability',
+        description: 'Request metrics, latency, and error rates via Prometheus, visualized in Grafana.',
+    },
+    {
+        title: 'Infrastructure as code',
+        description: 'Terraform-provisioned secrets and Nomad job specs, version-controlled end to end.',
+    },
 ]
 
 export default function Home() {
     return (
         <>
-            <Head>
-                <title>DevSync</title>
-            </Head>
+            <Seo
+                title="DevSync"
+                description="DevSync is a full-stack DevOps platform for secrets management, service discovery, and observability, built on HashiCorp Vault, Consul, Terraform, and Nomad."
+                path="/"
+            />
             <div className="min-h-screen bg-background text-ink">
                 <header className="border-b border-border">
                     <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -33,12 +47,12 @@ export default function Home() {
                         All systems operational
                     </div>
                     <h1 className="text-5xl font-bold tracking-tight text-balance">
-                        Full-stack DevOps, wired together properly
+                        One platform for secrets, service discovery, and observability
                     </h1>
                     <p className="mt-5 text-lg text-ink-muted text-balance">
-                        Vault-backed secrets, Consul service discovery, Prometheus metrics, and
-                        Terraform + Nomad provisioning - built to demonstrate the real thing, not
-                        a slide about it.
+                        DevSync unifies HashiCorp Vault, Consul, and Terraform with Prometheus-based
+                        monitoring, giving engineering teams a single, secure control plane for
+                        infrastructure operations.
                     </p>
                     <div className="mt-8 flex items-center justify-center gap-3">
                         <Link
