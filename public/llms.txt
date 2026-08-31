@@ -1,0 +1,36 @@
+# DevSync
+
+> A full-stack DevOps platform for secrets management, service discovery,
+> and observability, built on HashiCorp Vault, Consul, Terraform, and
+> Nomad, with a Next.js/Express frontend and backend.
+
+DevSync gives engineering teams a single control plane for infrastructure
+operations: Vault-backed secrets (no credentials hardcoded anywhere in the
+codebase), Consul-based service discovery with automated health checks,
+Prometheus metrics visualized in Grafana, log aggregation via Loki, and
+Terraform-provisioned infrastructure deployed through Nomad.
+
+## Key pages
+
+- [Dashboard](https://devsync.app/dashboard): Live overview of request
+  volume, service health (PostgreSQL, MongoDB, Vault, Consul, Nomad, and
+  the backend API), and recent deployment activity.
+
+## Technical implementation
+
+- **Secrets:** HashiCorp Vault (KV v2), with role-based access control
+  enforced on every route that reads them.
+- **Service discovery:** Consul, with the backend self-registering an
+  HTTP health check on startup and deregistering on shutdown.
+- **Observability:** Prometheus scrapes a `/metrics` endpoint exposing
+  HTTP request duration histograms; Grafana is pre-provisioned with
+  Prometheus and Loki data sources.
+- **Infrastructure as code:** Terraform provisions Vault secrets and a
+  Nomad job spec (`backend.nomad`) for the backend service.
+- **Authentication:** JWT-based, with GitHub OAuth2 as an alternative
+  login path.
+- **CI/CD:** GitHub Actions runs lint, typecheck, unit tests, a real
+  database migration against a Postgres service container, and a full
+  build on every push.
+
+Source and full documentation: https://github.com/Younique98/devsync
