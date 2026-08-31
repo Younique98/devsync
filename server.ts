@@ -29,9 +29,12 @@ app.use(express.json())
 app.use((req: Request, res: Response, next: NextFunction) => {
     const endTimer = httpRequestDuration.startTimer()
     res.on('finish', () => {
+        // Only ever label with a matched Express route (a small, fixed set).
+        // Falling back to the raw request path would let an attacker create
+        // unbounded Prometheus label cardinality by hitting random URLs.
         endTimer({
             method: req.method,
-            route: req.route?.path || req.path,
+            route: req.route?.path || 'unmatched',
             status_code: res.statusCode,
         })
     })
@@ -55,26 +58,45 @@ app.post('/login', async (req: Request, res: Response) => {
         return res.status(400).json({ message: 'Username and password are required' })
     }
 
-    const user = await findUserByCredentials(username, password)
-    if (!user) {
-        return res.status(401).json({ message: 'Invalid credentials' })
-    }
+    try {
+        const user = await findUserByCredentials(username, password)
+        if (!user) {
+            return res.status(401).json({ message: 'Invalid credentials' })
+        }
 
-    const token = await generateToken(user.id, user.role)
-    return res.json({ token, role: user.role })
+        const token = await generateToken(user.id, user.role)
+        return res.json({ token, role: user.role })
+    } catch (error: any) {
+        console.error('❌ Login error:', error)
+        return res.status(500).json({ message: 'Login failed', error: error.message })
+    }
 })
 
 // --- GitHub OAuth2 (Authorization Code flow) ---
 // In-memory state store for CSRF protection between /auth/github and its
 // callback. A multi-instance deployment should move this to Redis/Vault
-// instead - fine for a single-instance demo.
-const pendingOAuthStates = new Set<string>()
+// instead - fine for a single-instance demo. States expire after
+// OAUTH_STATE_TTL_MS so an abandoned /auth/github (never followed by a
+// callback) doesn't grow this map forever.
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000
+const pendingOAuthStates = new Map<string, number>() // state -> expiresAt
+
+function pruneExpiredOAuthStates() {
+    const now = Date.now()
+    for (const [state, expiresAt] of pendingOAuthStates) {
+        if (expiresAt <= now) {
+            pendingOAuthStates.delete(state)
+        }
+    }
+}
 
 app.get('/auth/github', (req: Request, res: Response) => {
+    pruneExpiredOAuthStates()
     const state = crypto.randomBytes(16).toString('hex')
-    pendingOAuthStates.add(state)
     try {
-        res.redirect(getGithubAuthorizeUrl(state))
+        const authorizeUrl = getGithubAuthorizeUrl(state)
+        pendingOAuthStates.set(state, Date.now() + OAUTH_STATE_TTL_MS)
+        res.redirect(authorizeUrl)
     } catch (error: any) {
         res.status(500).json({ error: error.message })
     }
@@ -83,6 +105,7 @@ app.get('/auth/github', (req: Request, res: Response) => {
 app.get('/auth/github/callback', async (req: Request, res: Response) => {
     const { code, state } = req.query
 
+    pruneExpiredOAuthStates()
     if (typeof state !== 'string' || !pendingOAuthStates.has(state)) {
         return res.status(400).json({ error: 'Invalid or expired OAuth state' })
     }

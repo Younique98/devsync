@@ -67,6 +67,16 @@ describe('POST /login', () => {
         expect(res.body.token).toEqual(expect.any(String))
         expect(res.body.role).toBe('admin')
     })
+
+    it('returns 500 instead of hanging when token signing fails (e.g. Vault down)', async () => {
+        mockedAxios.get.mockRejectedValue(new Error('Vault unreachable'))
+
+        const res = await request(app)
+            .post('/login')
+            .send({ username: 'admin', password: 'admin123' })
+
+        expect(res.status).toBe(500)
+    })
 })
 
 describe('GET /admin/status', () => {
@@ -121,5 +131,33 @@ describe('GET /auth/github/callback', () => {
         const res = await request(app).get('/auth/github/callback').query({ state })
 
         expect(res.status).toBe(400)
+    })
+
+    it('rejects a state that has expired', async () => {
+        const startRes = await request(app).get('/auth/github')
+        const state = new URL(startRes.headers.location).searchParams.get('state')!
+
+        const realNow = Date.now
+        Date.now = () => realNow() + 11 * 60 * 1000 // 11 minutes later
+        try {
+            const res = await request(app)
+                .get('/auth/github/callback')
+                .query({ code: 'abc', state })
+
+            expect(res.status).toBe(400)
+        } finally {
+            Date.now = realNow
+        }
+    })
+})
+
+describe('Prometheus route label cardinality', () => {
+    it('labels unmatched routes with a fixed placeholder, not the raw path', async () => {
+        await request(app).get('/this-path-does-not-exist')
+
+        const res = await request(app).get('/metrics')
+
+        expect(res.text).not.toContain('this-path-does-not-exist')
+        expect(res.text).toContain('route="unmatched"')
     })
 })
