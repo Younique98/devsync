@@ -85,5 +85,4 @@ const connectDatabases = async () => {
     }
 }
 
-connectDatabases()
 export { connectDatabases }

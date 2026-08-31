@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: devsync_test
+          POSTGRES_PASSWORD: devsync_test
+          POSTGRES_DB: devsync_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck (frontend + tests)
+        run: npx tsc --noEmit
+
+      - name: Typecheck (backend build config)
+        run: npx tsc -p tsconfig.server.json --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Run DB migrations against test Postgres
+        run: node migrations/migrate.js
+        env:
+          PG_USER: devsync_test
+          PG_PASSWORD: devsync_test
+          PG_DATABASE: devsync_test
+          PG_HOST: localhost
+
+      - name: Build (frontend + backend)
+        run: npm run build

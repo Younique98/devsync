@@ -1,8 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { requireRole } from '../../auth'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'GET') {
         return res.status(405).json({ error: 'Method Not Allowed' })
+    }
+
+    try {
+        await requireRole(req.headers.authorization, ['admin'])
+    } catch (error: any) {
+        return res.status(401).json({ error: error.message })
     }
 
     const VAULT_ADDR = process.env.VAULT_ADDR

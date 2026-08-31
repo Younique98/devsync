@@ -39,6 +39,15 @@ resource "vault_generic_secret" "database_secrets" {
 
 resource "nomad_job" "backend_service" {
   jobspec = file("${path.module}/backend.nomad")
+
+  hcl2 {
+    enabled = true
+    vars = {
+      pg_user     = var.pg_user
+      pg_password = var.pg_password
+      mongo_uri   = var.mongo_uri
+    }
+  }
 }
 
 
