@@ -82,6 +82,9 @@ MONGO_PASSWORD=your_mongo_password
 # Service discovery
 CONSUL_ADDR=http://devsync-consul:8500
 
+# Bearer token required on GET /metrics (must match monitoring/prometheus.yml)
+METRICS_TOKEN=devsync-local-metrics-token
+
 # GitHub OAuth2 (create an OAuth App at https://github.com/settings/developers)
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
@@ -142,9 +145,9 @@ terraform apply
 ## ✅ **API Endpoints**
 | Method | Endpoint                | Description                                              |
 |--------|--------------------------|-----------------------------------------------------------|
-| `GET`  | `/health`                | Health check (also the Consul + Kubernetes probe target) |
-| `GET`  | `/metrics`                | Prometheus-formatted metrics                              |
-| `POST` | `/login`                  | Username/password login against the demo user store, returns a JWT |
+| `GET`  | `/health`                | Health check (also the Consul + Kubernetes probe target) - open, no auth |
+| `GET`  | `/metrics`                | Prometheus-formatted metrics - requires `Authorization: Bearer <METRICS_TOKEN>` |
+| `POST` | `/login`                  | Username/password login against the demo user store, returns a JWT - rate-limited to 5 failed attempts per IP+username per 15 minutes, returns `429` when tripped |
 | `GET`  | `/auth/github`             | Redirects to GitHub's OAuth2 authorize page                |
 | `GET`  | `/auth/github/callback`    | Exchanges the OAuth code, returns a JWT                    |
 | `GET`  | `/admin/status`            | RBAC-protected (`admin` role) - Postgres/Mongo connection status |

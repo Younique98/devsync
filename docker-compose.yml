@@ -108,6 +108,7 @@ services:
             VAULT_ADDR: 'http://devsync-vault:8200'
             VAULT_TOKEN: ${VAULT_TOKEN}
             CONSUL_ADDR: 'http://devsync-consul:8500'
+            METRICS_TOKEN: ${METRICS_TOKEN}
         ports:
             - '5001:5001'
         command: npm run dev
