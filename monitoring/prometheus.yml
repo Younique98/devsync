@@ -7,6 +7,13 @@ scrape_configs:
     static_configs:
       - targets: ['devsync-backend:5001']
     metrics_path: /metrics
+    # Must match METRICS_TOKEN in .env - the backend rejects unauthenticated
+    # scrapes of /metrics (see server.ts). Prometheus's own config format
+    # doesn't support ${VAR} substitution from the environment, so this is
+    # a literal value here, same as the checked-in .env.example default -
+    # change both together if you rotate it for anything beyond local dev.
+    authorization:
+      credentials: devsync-local-metrics-token
 
   - job_name: 'prometheus'
     static_configs:

@@ -20,13 +20,13 @@ const DEMO_USERS: DemoUser[] = [
     {
         id: 'admin',
         username: 'admin',
-        passwordHash: bcrypt.hashSync('admin123', 10),
+        passwordHash: bcrypt.hashSync('admin123', 12),
         role: 'admin',
     },
     {
         id: 'demo',
         username: 'demo',
-        passwordHash: bcrypt.hashSync('demo123', 10),
+        passwordHash: bcrypt.hashSync('demo123', 12),
         role: 'user',
     },
 ]

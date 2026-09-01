@@ -26,6 +26,18 @@ const httpRequestDuration = new client.Histogram({
 
 app.use(express.json())
 
+// Baseline security response headers. Hand-rolled rather than pulling in
+// helmet - this is the small, fixed set that actually applies to a JSON
+// API with no HTML responses of its own (X-Powered-By removed so the
+// Express version isn't advertised to every caller).
+app.disable('x-powered-by')
+app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    res.setHeader('X-Frame-Options', 'DENY')
+    res.setHeader('Referrer-Policy', 'no-referrer')
+    next()
+})
+
 app.use((req: Request, res: Response, next: NextFunction) => {
     const endTimer = httpRequestDuration.startTimer()
     res.on('finish', () => {
@@ -42,33 +54,124 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 })
 
 app.get('/metrics', async (req: Request, res: Response) => {
+    // Prometheus metrics leak infra topology (route names, status-code
+    // distributions, process/host stats via collectDefaultMetrics) that
+    // shouldn't be handed to anyone on the internet who finds the port -
+    // gate it the same way the rest of this app gates sensitive reads:
+    // a bearer token, checked in constant time. /health stays open below;
+    // a bare liveness boolean isn't sensitive and orchestrators need it
+    // reachable without credentials.
+    const METRICS_TOKEN = process.env.METRICS_TOKEN
+    if (!METRICS_TOKEN) {
+        return res.status(500).json({ error: 'Metrics token not configured' })
+    }
+
+    const authHeader = req.headers.authorization
+    const presented = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (!isValidMetricsToken(presented, METRICS_TOKEN)) {
+        return res.status(401).json({ error: 'Unauthorized' })
+    }
+
     res.set('Content-Type', metricsRegistry.contentType)
     res.end(await metricsRegistry.metrics())
 })
+
+// Constant-time token comparison so response timing can't be used to guess
+// the token byte-by-byte. timingSafeEqual throws on a length mismatch
+// rather than returning false, so that's checked first.
+function isValidMetricsToken(presented: string | null, expected: string): boolean {
+    if (!presented) return false
+    const presentedBuf = Buffer.from(presented)
+    const expectedBuf = Buffer.from(expected)
+    if (presentedBuf.length !== expectedBuf.length) return false
+    return crypto.timingSafeEqual(presentedBuf, expectedBuf)
+}
 
 // Define a health check endpoint
 app.get('/health', (req: Request, res: Response) => {
     res.json({ status: 'Server is running' })
 })
 
+// In-memory login rate limiter, keyed by IP + username. Same tradeoff as
+// pendingOAuthStates below: fine for a single-instance demo, a real
+// multi-instance deployment should move this to Redis (this repo has no
+// Redis service today - see docker-compose.yml). Counts failed attempts
+// only; a successful login clears the counter so it never locks out a
+// user who just mistyped a password once.
+const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 5
+const loginAttempts = new Map<string, { count: number; resetAt: number }>()
+
+function pruneExpiredLoginAttempts() {
+    const now = Date.now()
+    for (const [key, entry] of loginAttempts) {
+        if (entry.resetAt <= now) {
+            loginAttempts.delete(key)
+        }
+    }
+}
+
+function loginRateLimitKey(req: Request, username: string): string {
+    return `${req.ip}:${username.toLowerCase()}`
+}
+
+function recordFailedLoginAttempt(key: string) {
+    const now = Date.now()
+    const entry = loginAttempts.get(key)
+    if (entry && entry.resetAt > now) {
+        entry.count += 1
+    } else {
+        loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_RATE_LIMIT_WINDOW_MS })
+    }
+}
+
 app.post('/login', async (req: Request, res: Response) => {
     const { username, password } = req.body
 
-    if (!username || !password) {
+    // Reject non-string bodies outright, not just missing ones - an
+    // object/array slipped into bcrypt.compare() would throw and fall
+    // through to the catch block below instead of a clean 400, and an
+    // unbounded string is needless input to hash-compare against.
+    if (
+        typeof username !== 'string' ||
+        typeof password !== 'string' ||
+        username.length === 0 ||
+        password.length === 0 ||
+        username.length > 256 ||
+        password.length > 256
+    ) {
         return res.status(400).json({ message: 'Username and password are required' })
+    }
+
+    pruneExpiredLoginAttempts()
+    const rateLimitKey = loginRateLimitKey(req, username)
+    const rateLimitEntry = loginAttempts.get(rateLimitKey)
+    if (rateLimitEntry && rateLimitEntry.count >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS) {
+        const retryAfterSeconds = Math.ceil((rateLimitEntry.resetAt - Date.now()) / 1000)
+        res.setHeader('Retry-After', String(retryAfterSeconds))
+        return res.status(429).json({
+            message: `Too many failed login attempts. Try again in ${Math.ceil(retryAfterSeconds / 60)} minute(s).`,
+        })
     }
 
     try {
         const user = await findUserByCredentials(username, password)
         if (!user) {
+            recordFailedLoginAttempt(rateLimitKey)
             return res.status(401).json({ message: 'Invalid credentials' })
         }
+
+        // A correct password clears any prior failed attempts for this
+        // key - only wrong guesses should ever count toward the limit.
+        loginAttempts.delete(rateLimitKey)
 
         const token = await generateToken(user.id, user.role)
         return res.json({ token, role: user.role })
     } catch (error: any) {
+        // Log the real cause server-side only (e.g. Vault unreachable) -
+        // never echo internal error detail back to an unauthenticated caller.
         console.error('❌ Login error:', error)
-        return res.status(500).json({ message: 'Login failed', error: error.message })
+        return res.status(500).json({ message: 'Login failed' })
     }
 })
 

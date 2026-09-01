@@ -70,10 +70,10 @@ export function RequestVolumeChart({ data }: { data: Point[] }) {
                 ))}
 
                 {/* area fill */}
-                <path d={areaPath} fill="#3987e5" fillOpacity={0.1} stroke="none" />
+                <path d={areaPath} fill="#3174c5" fillOpacity={0.1} stroke="none" />
 
                 {/* line */}
-                <path d={linePath} fill="none" stroke="#3987e5" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                <path d={linePath} fill="none" stroke="#3174c5" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
 
                 {/* x-axis labels (every 4th hour) */}
                 {data.map(
@@ -97,7 +97,7 @@ export function RequestVolumeChart({ data }: { data: Point[] }) {
                             strokeWidth={1}
                             strokeDasharray="3 3"
                         />
-                        <circle cx={xFor(hoverIndex)} cy={yFor(data[hoverIndex].value)} r={4} fill="#3987e5" stroke="#121826" strokeWidth={2} />
+                        <circle cx={xFor(hoverIndex)} cy={yFor(data[hoverIndex].value)} r={4} fill="#3174c5" stroke="#121826" strokeWidth={2} />
                     </>
                 )}
             </svg>
