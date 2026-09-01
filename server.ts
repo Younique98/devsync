@@ -26,6 +26,18 @@ const httpRequestDuration = new client.Histogram({
 
 app.use(express.json())
 
+// Baseline security response headers. Hand-rolled rather than pulling in
+// helmet - this is the small, fixed set that actually applies to a JSON
+// API with no HTML responses of its own (X-Powered-By removed so the
+// Express version isn't advertised to every caller).
+app.disable('x-powered-by')
+app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    res.setHeader('X-Frame-Options', 'DENY')
+    res.setHeader('Referrer-Policy', 'no-referrer')
+    next()
+})
+
 app.use((req: Request, res: Response, next: NextFunction) => {
     const endTimer = httpRequestDuration.startTimer()
     res.on('finish', () => {
@@ -54,7 +66,18 @@ app.get('/health', (req: Request, res: Response) => {
 app.post('/login', async (req: Request, res: Response) => {
     const { username, password } = req.body
 
-    if (!username || !password) {
+    // Reject non-string bodies outright, not just missing ones - an
+    // object/array slipped into bcrypt.compare() would throw and fall
+    // through to the catch block below instead of a clean 400, and an
+    // unbounded string is needless input to hash-compare against.
+    if (
+        typeof username !== 'string' ||
+        typeof password !== 'string' ||
+        username.length === 0 ||
+        password.length === 0 ||
+        username.length > 256 ||
+        password.length > 256
+    ) {
         return res.status(400).json({ message: 'Username and password are required' })
     }
 
@@ -67,8 +90,10 @@ app.post('/login', async (req: Request, res: Response) => {
         const token = await generateToken(user.id, user.role)
         return res.json({ token, role: user.role })
     } catch (error: any) {
+        // Log the real cause server-side only (e.g. Vault unreachable) -
+        // never echo internal error detail back to an unauthenticated caller.
         console.error('❌ Login error:', error)
-        return res.status(500).json({ message: 'Login failed', error: error.message })
+        return res.status(500).json({ message: 'Login failed' })
     }
 })
 

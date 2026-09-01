@@ -148,7 +148,7 @@ terraform apply
 | `GET`  | `/auth/github`             | Redirects to GitHub's OAuth2 authorize page                |
 | `GET`  | `/auth/github/callback`    | Exchanges the OAuth code, returns a JWT                    |
 | `GET`  | `/admin/status`            | RBAC-protected (`admin` role) - Postgres/Mongo connection status |
-| `GET`  | `/api/vault`               | Next.js API route proxying secrets from Vault, RBAC-protected (`admin` role) |
+| `GET`  | `/api/vault`               | Next.js API route reporting which secrets are configured in Vault, RBAC-protected (`admin` role) - returns key names only, never raw secret values |
 
 **Demo login credentials** (see `users.ts`): `admin` / `admin123` (role: `admin`), `demo` / `demo123` (role: `user`).
 
