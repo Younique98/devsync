@@ -1,0 +1,46 @@
+# Fly.io app config for the DevSync production Vault.
+#
+# No public IP is allocated to this app - it's reachable only via Flycast
+# (Fly's private-proxy network) at devsync-vault.flycast:8200, which is
+# what devsync-backend's VAULT_ADDR points at (see fly/backend/fly.toml).
+# Flycast, not the default ".internal" 6PN address, is required for
+# autostop/autostart to work on a machine with no public traffic of its
+# own - see DEPLOYMENT.md "Why Flycast" for the full reasoning and the
+# `fly launch --flycast` / `fly ips allocate-v6 --private` setup step.
+#
+# Build context is the REPO ROOT (this app's Dockerfile only needs files
+# inside fly/vault/ itself, but see DEPLOYMENT.md for the exact `fly
+# deploy` invocation used for all four apps, for consistency).
+
+app = "devsync-vault"
+primary_region = "iad"
+
+[build]
+  dockerfile = "fly/vault/Dockerfile"
+
+[env]
+  VAULT_ADDR = "http://127.0.0.1:8200"
+  # Matches primary_region above (iad = AWS us-east-1's Fly region) so the
+  # KMS calls Vault makes on every unseal stay in-region.
+  AWS_REGION = "us-east-1"
+  # VAULT_AWSKMS_SEAL_KEY_ID, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY are
+  # NOT set here - `fly secrets set` them instead (see DEPLOYMENT.md). This
+  # app's storage (the /vault/data volume below) holds Vault's real sealed
+  # data - encrypted at rest by the KMS key, but still not something to
+  # treat casually.
+
+[[mounts]]
+  source = "devsync_vault_data"
+  destination = "/vault/data"
+
+[http_service]
+  internal_port = 8200
+  # Flycast is HTTP-only end to end - force_https here would break it.
+  force_https = false
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

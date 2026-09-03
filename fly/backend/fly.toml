@@ -1,0 +1,60 @@
+# Fly.io app config for the DevSync Express backend (server.ts).
+#
+# Build context is the REPO ROOT, not this directory - see the "Deploy the
+# backend" step in DEPLOYMENT.md for the exact `fly deploy` invocation.
+# `dockerfile` below is written relative to that root build context.
+#
+# Scale-to-zero: auto_stop_machines/auto_start_machines/min_machines_running
+# are the fields Fly's current docs (fly.io/docs/reference/configuration,
+# fly.io/docs/launch/autostop-autostart) document for this - confirmed
+# against multiple current fly.toml examples since this sandbox couldn't
+# reach fly.io directly (network egress to fly.io is blocked here). Double
+# check `fly config validate` after any edits.
+
+app = "devsync-backend"
+primary_region = "iad"
+
+[build]
+  dockerfile = "fly/backend/Dockerfile"
+
+[env]
+  PORT = "5001"
+  # Vault and Consul are Flycast-private (not on the public internet) -
+  # see fly/vault/fly.toml and fly/consul/fly.toml. ".flycast" is Fly's
+  # private-proxy hostname, required (instead of the default ".internal"
+  # 6PN address) so that a request to a scaled-to-zero Vault/Consul machine
+  # actually goes through the Fly Proxy and triggers autostart - plain
+  # 6PN machine-to-machine traffic bypasses the proxy and will NOT wake a
+  # stopped machine. See DEPLOYMENT.md "Why Flycast" for the full reasoning.
+  VAULT_ADDR = "http://devsync-vault.flycast:8200"
+  CONSUL_ADDR = "http://devsync-consul.flycast:8500"
+  # PG_HOST (used inside the Vault-stored database secret, not here
+  # directly - see database.ts) is the Fly Postgres app's normal internal
+  # hostname. Fly Postgres's own scale-to-zero wake-on-connect is a
+  # Postgres-image-specific mechanism, documented separately from the
+  # generic Flycast requirement above - plain "<app>.internal" is fine
+  # for it. Set the real hostname when you seed Vault - see DEPLOYMENT.md.
+
+# VAULT_TOKEN, METRICS_TOKEN, JWT-related secrets, GitHub OAuth client
+# secret, etc. are NOT set here - `fly secrets set` them instead so they
+# never land in this checked-in file. See DEPLOYMENT.md.
+
+[http_service]
+  internal_port = 5001
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    method = "GET"
+    path = "/health"
+    protocol = "http"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
