@@ -16,6 +16,7 @@ DevSync is a **full-stack DevOps monitoring and automation platform** that lever
 - **Role-based Access Control (RBAC)** - `requireRole()` in `auth.ts`, enforced on `/admin/status` and `/api/vault`
 - **Health Checks & Service Discovery** - the backend self-registers with Consul on startup with an HTTP health check, and deregisters on shutdown (`serviceDiscovery.ts`)
 - **Monitoring Dashboard** - `/dashboard` shows live backend health and links to Grafana/Prometheus/Consul/Nomad/Vault
+- **Real Deployment** - Vercel (frontend) + Fly.io scale-to-zero apps (backend, Postgres, Vault, Consul) + MongoDB Atlas free tier, with Vault auto-unsealed via AWS KMS - see [DEPLOYMENT.md](DEPLOYMENT.md)
 
 See [Areas for Improvement](#-areas-for-improvement) below for the couple of things that need real infrastructure credentials I don't have to fully wire up, or a larger fix than fits this pass.
 
@@ -221,6 +222,18 @@ All of the above run in CI on every push/PR, along with a real migration run aga
 ---
 
 ## 🚀 **Deployment**
+
+**Real deployment (Vercel + Fly.io + MongoDB Atlas)** - see
+**[DEPLOYMENT.md](DEPLOYMENT.md)** for the full walkthrough: the Express
+backend, Fly Postgres, Vault, and Consul each deploy as their own
+scale-to-zero Fly.io app (`fly/backend/`, `fly/vault/`, `fly/consul/`),
+MongoDB is a free-tier Atlas cluster (not self-hosted), Vault runs with
+real AWS KMS auto-unseal, and the Next.js frontend (already on Vercel)
+points at the Fly-hosted backend via `NEXT_PUBLIC_BACKEND_URL`.
+
+For local/cluster experimentation, the Nomad, Terraform, and Kubernetes
+config below also still work:
+
 Deploy the Nomad job directly:
 ```sh
 nomad run backend.nomad
@@ -237,6 +250,7 @@ A few things that are genuinely out of reach without infrastructure I don't have
 - **GitHub OAuth2 end-to-end** - the authorize-URL and code-exchange logic (`oauth.ts`) is real and unit-tested against a mocked GitHub API, and the `/auth/github` + `/auth/github/callback` routes are integration-tested. What's *not* tested is a live round trip against the real GitHub OAuth service, since that needs a real registered OAuth App's client ID/secret.
 - **Demo user store -> real Postgres table** - `users.ts` is an in-memory demo store (clearly marked as such) so the login flow can be exercised end-to-end without a full user-management feature. `migrations/001_create_users_table.sql` already creates the real `users` table this should read from instead - swapping `users.ts` to query it is the next step.
 - **MongoDB, and the containers themselves** - I don't have a way to run MongoDB or pull Docker images in this environment, so those two specific pieces haven't been exercised live. Everything else that touches the Vault/Postgres/Consul chain *has* been - see below.
+- **Dashboard still renders demo data, not a live backend call** - `pages/dashboard.tsx` renders `lib/mockData.ts` directly; nothing in `pages/`/`components/`/`lib/` reads `NEXT_PUBLIC_BACKEND_URL` yet, even though it's wired all the way to the real Fly-hosted backend now (see [DEPLOYMENT.md](DEPLOYMENT.md)). Swapping the dashboard to a live fetch - and adding a "waking up demo infrastructure…" state for the scale-to-zero cold-start gap while doing it - is the natural next step, flagged there rather than bolted on here.
 
 ### What "verified" actually means here
 

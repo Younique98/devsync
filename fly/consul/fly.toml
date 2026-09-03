@@ -1,0 +1,23 @@
+# Fly.io app config for the DevSync Consul service-discovery agent.
+#
+# No public IP - reachable only via Flycast at devsync-consul.flycast:8500,
+# which is what devsync-backend's CONSUL_ADDR points at (see
+# fly/backend/fly.toml). See DEPLOYMENT.md "Why Flycast" for why plain
+# ".internal" 6PN addressing won't autostart a stopped machine here.
+
+app = "devsync-consul"
+primary_region = "iad"
+
+[build]
+  dockerfile = "fly/consul/Dockerfile"
+
+[http_service]
+  internal_port = 8500
+  force_https = false
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
